@@ -1,0 +1,40 @@
+{
+    "type": "library",
+    "name": "autoframe/components-socket-cache",
+    "description": "PHP client - cache server alternative for memcached / redis",
+    "license": "MIT",
+    "homepage": "https://github.com/autoframe",
+    "require": {
+        "php": ">=7.4",
+        "ext-sockets": "*",
+        "autoframe/components-exception": ">=2.0",
+        "autoframe/process-control": ">=1.0",
+        "ext-zlib": "*",
+        "illuminate/contracts": "^v8.83",
+        "illuminate/cache": "^v8.83",
+        "laravel/framework": "v8.83.27"
+    },
+    "version": "1.0.0",
+    "authors": [
+        {
+            "name": "Nistor Alexandru Marius",
+            "homepage": "https://autoframe.ro",
+            "role": "Developer"
+        }
+    ],
+    "keywords": ["socket", "client", "server", "cache"],
+    "autoload": {
+        "psr-4": {
+            "Autoframe\\Components\\SocketCache\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Unit\\": "Tests/Unit"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.6 || ^10"
+    }
+
+}
