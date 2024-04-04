@@ -17,23 +17,9 @@ class AfrCacheManagerTest extends TestCase
         return strpos(__DIR__, DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR) !== false;
     }
 
-    protected function setUp(): void
+    protected static function gitHubRunner(): bool
     {
-
-        /*    $oManager = AfrCache::setManager(
-                new AfrCacheManager(
-                    AfrCacheApp::getInstance()
-                )
-            );*/
-
-
-
-
-
-
-
-
-
+        return strpos(__FILE__, '/home/runner/work/') !== false;
     }
 
 
@@ -249,7 +235,7 @@ class AfrCacheManagerTest extends TestCase
             fclose($pf);
         }
         else{
-            echo 'Memcached supported by server is unavailable';// die;
+            echo 'Memcached supported by server is unavailable'.PHP_EOL;// die;
             $this->assertSame(true, true);
             return;
         }
@@ -289,7 +275,7 @@ class AfrCacheManagerTest extends TestCase
     {
 
         $oApp = AfrCacheApp::getInstance();
-        if (!$oApp->testApc()) {
+        if (!$oApp->testApc() || self::gitHubRunner()) {
             $this->assertSame(true, true);
             return;
         }

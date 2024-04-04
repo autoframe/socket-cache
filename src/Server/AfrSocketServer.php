@@ -253,8 +253,8 @@ class AfrSocketServer
     protected function socketCloseClient($iClientQueueKey, int $mode = 1): void
     {
         if (!empty($this->aSocketClients[$iClientQueueKey])) {
-            socket_shutdown($this->aSocketClients[$iClientQueueKey], $mode);
-            socket_close($this->aSocketClients[$iClientQueueKey]);
+            @socket_shutdown($this->aSocketClients[$iClientQueueKey], $mode);
+            @socket_close($this->aSocketClients[$iClientQueueKey]);
         }
         unset($this->aSocketClients[$iClientQueueKey]);
     }
