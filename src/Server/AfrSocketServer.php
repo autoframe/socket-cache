@@ -270,7 +270,7 @@ class AfrSocketServer
             $sRead .= $sBuf;
         }
         if (strlen($sRead) > 0) {
-            socket_shutdown($this->aSocketClients[$key], 0); //off reading(0);writing(1);both(2)
+            @socket_shutdown($this->aSocketClients[$key], 0); //off reading(0);writing(1);both(2)
         }
         return $sRead;
     }

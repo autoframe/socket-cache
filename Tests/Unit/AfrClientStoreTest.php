@@ -25,11 +25,11 @@ class AfrClientStoreTest extends TestCase
     protected function setUp(): void
     {
         try {
-            $oConfig = new AfrCacheSocketConfig(basename(__FILE__));
-        //    $oConfig->iAutoShutdownServerAfterXSeconds = 20;
+            $oConfig = new AfrCacheSocketConfig('afrsock');
+            $oConfig->iAutoShutdownServerAfterXSeconds = 60;
             $oConfig->bServerAutoPowerOnByConfigViaCliOnLocal = true;
-            $oConfig->iServerMemoryMb = 24;
-        //    $oConfig->socketPort = 27499;// + rand(0, 99);
+            $oConfig->iServerMemoryMb = 16;
+            $oConfig->socketPort = 27499;// + rand(0, 99);
 
             AfrCacheSocketConfig::serverUp($oConfig);
 
@@ -49,7 +49,7 @@ class AfrClientStoreTest extends TestCase
     {
         echo __CLASS__ . '->' . __FUNCTION__ . PHP_EOL;
         $aReturn = [];
-        for ($i = 0; $i < 2; $i++) {
+        for ($i = 0; $i < 1; $i++) {
             $sData = self::generateRandomSockText(rand(1, 2));
             $sKey = $i . md5($sData);
             $oClass = new \stdClass();

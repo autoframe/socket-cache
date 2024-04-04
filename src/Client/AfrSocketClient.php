@@ -171,7 +171,7 @@ class AfrSocketClient
             $this->pushSocketErrors('socket_write(' . $this->oConfig->driver . ') failed: ' .
                 socket_strerror(socket_last_error($this->oConfig->mSocket)));
         }
-        socket_shutdown($this->oConfig->mSocket, 1); //off reading(0);writing(1);both(2)
+        @socket_shutdown($this->oConfig->mSocket, 1); //off reading(0);writing(1);both(2)
         return $result;
     }
 
@@ -199,7 +199,7 @@ class AfrSocketClient
             return [null, false, $sErr];
         }
 
-        socket_shutdown($this->oConfig->mSocket, 0); //off reading(0);writing(1);both(2)
+        @socket_shutdown($this->oConfig->mSocket, 0); //off reading(0);writing(1);both(2)
         return $this->oConfig->xetIntegrityValidator()->clDecodeRead($sOut);
     }
 

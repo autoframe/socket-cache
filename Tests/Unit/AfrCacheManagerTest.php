@@ -235,7 +235,7 @@ class AfrCacheManagerTest extends TestCase
             fclose($pf);
         }
         else{
-            echo 'Memcached supported by server is unavailable'.PHP_EOL;// die;
+            echo ' Memcached supported by server is unavailable'.PHP_EOL;// die;
             $this->assertSame(true, true);
             return;
         }
