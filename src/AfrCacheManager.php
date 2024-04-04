@@ -2,42 +2,51 @@
 
 namespace Autoframe\Components\SocketCache;
 
-use Illuminate\Cache\Repository;
-use Illuminate\Contracts\Cache\Store;
-use Illuminate\Contracts\Events\Dispatcher as DispatcherContract;
+use Autoframe\Components\SocketCache\Client\AfrClientStore;
+use Autoframe\Components\SocketCache\App\AfrCacheApp;
+use Autoframe\Components\SocketCache\LaravelPort\Cache\CacheManager;
+use InvalidArgumentException;
 
-class AfrCacheManager
+
+class AfrCacheManager extends CacheManager
 {
-
-
     /**
-     * Create a new cache repository with the given implementation.
-     *
-     * @param  \Illuminate\Contracts\Cache\Store  $store
-     * @return \Illuminate\Cache\Repository
+     * Create a new Cache manager instance.
      */
-    public function repository(Store $store)
+    public function __construct($app)
     {
-        return tap(new Repository($store), function ($repository) {
-            $this->setEventDispatcher($repository);
-        });
-    }
-
-    /**
-     * Set the event dispatcher on the given repository instance.
-     *
-     * @param  \Illuminate\Cache\Repository  $repository
-     * @return void
-     */
-    protected function setEventDispatcher(Repository $repository)
-    {
-        if (! $this->app->bound(DispatcherContract::class)) {
-            return;
+        if (empty($app)) {
+            $this->app = AfrCacheApp::getInstance();
+        } else {
+            parent::__construct($app);
         }
-
-        $repository->setEventDispatcher(
-            $this->app[DispatcherContract::class]
-        );
     }
 
+    /**
+     * @param $name
+     * @return LaravelPort\Contracts\Cache\Repository
+     */
+    protected function resolve($name)
+    {
+        $config = $this->getConfig($name);
+
+        if (is_null($config)) {
+            throw new InvalidArgumentException("Cache store [{$name}] is not defined.");
+        }
+        $driverMethod = 'create' . ucfirst($config['driver']) . 'Driver';
+        if (
+            !method_exists($this, $driverMethod) &&
+            !isset($this->customCreators[$config['driver']]) &&
+            isset($this->app['config']["cache.stores.{$name}"])
+        ) {
+            if (!empty($config['extend']) && $config['extend'] instanceof \Closure) {
+                //'extend' Closure must return a new Repository
+                $this->extend($name, $config['extend']);
+            } elseif (!empty($config['closure']) && $config['closure'] instanceof \Closure) {
+                $config['closure']->bindTo($this, $this);
+                $config['closure']($this->app, $config);
+            }
+        }
+        return parent::resolve($name);
+    }
 }

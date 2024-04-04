@@ -5,7 +5,6 @@ namespace Autoframe\Components\SocketCache\Client;
 use Autoframe\Components\SocketCache\AfrCacheSocketConfig;
 use Autoframe\Components\SocketCache\Common\AfrCacheSocketStore;
 use Autoframe\Components\SocketCache\Exception\AfrCacheSocketException;
-use Autoframe\Components\SocketCache\Server\MemoryInfo;
 
 class AfrClientStore extends AfrCacheSocketStore
 {
@@ -37,6 +36,29 @@ class AfrClientStore extends AfrCacheSocketStore
         return $this->oSocketConfig;
     }
 
+    /**
+     * @return array
+     */
+    public function shutdownServer(): array
+    {
+        $r = $this->aSockResponse = $this->oClient->sendRequest('shutdown');
+        if(class_exists('\Autoframe\Components\SocketCache\Facade\AfrCache')){
+            \Autoframe\Components\SocketCache\Facade\AfrCache::getManager()->forgetDriver($this->oSocketConfig->driver);
+        }
+        AfrSocketClient::$aAutoServerUpSent[$this->oSocketConfig->driver] = false;
+        sleep(1);
+        return $r;
+    }
+
+    /**
+     * @return array
+     */
+    public function getServerStats(): array
+    {
+        return $this->aSockResponse = $this->oClient->sendRequest('stats');
+    }
+
+
 
     /**
      * @param string $sFn
@@ -60,7 +82,7 @@ class AfrClientStore extends AfrCacheSocketStore
             if (is_string($this->aSockResponse[0])) {
                 if (
                     substr($this->aSockResponse[0], 1, 1) === ':' &&
-                    strpos('sibaO', substr($this->aSockResponse[0], 0, 1)) !== false
+                    strpos('sidbaO', substr($this->aSockResponse[0], 0, 1)) !== false
                 ) {
                     //successful return as serialized
                     return unserialize($this->aSockResponse[0]);
@@ -70,9 +92,6 @@ class AfrClientStore extends AfrCacheSocketStore
             }
             return $this->aSockResponse[0];
         }
-
-
-        //TODO mechanism cache hit / miss din laravel???
         return null;
     }
 
@@ -108,7 +127,8 @@ class AfrClientStore extends AfrCacheSocketStore
      */
     public function many(array $keys): array
     {
-        return (array)$this->get($keys);
+        return (array)$this->genericStoreAction(__FUNCTION__, func_get_args());
+        //return (array)$this->get($keys);
     }
 
 
@@ -205,9 +225,10 @@ class AfrClientStore extends AfrCacheSocketStore
      *
      * @return string
      */
-    public function getPrefix(): string  //TODO NAMESPACES
+    public function getPrefix(): string
     {
-        return (string)$this->genericStoreAction(__FUNCTION__, []);
+        return '';   //TODO not supported yet
+        //return (string)$this->genericStoreAction(__FUNCTION__, []);
     }
 
 
@@ -219,5 +240,21 @@ class AfrClientStore extends AfrCacheSocketStore
     public function delete(string $sKey, int $iDelay = 0): bool
     {
         return (bool)$this->genericStoreAction(__FUNCTION__, [$sKey, $iDelay]);
+    }
+
+    /**
+     * @return array
+     */
+    public function getAllKeys(): array
+    {
+        return (array)$this->genericStoreAction(__FUNCTION__, []);
+    }
+
+    /**
+     * @return array
+     */
+    public function getMemoryUsageInfo(): array
+    {
+        return (array)$this->genericStoreAction(__FUNCTION__, [true]);
     }
 }

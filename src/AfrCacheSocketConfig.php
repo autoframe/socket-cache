@@ -3,53 +3,54 @@ declare(strict_types=1);
 
 namespace Autoframe\Components\SocketCache;
 
-use Autoframe\Components\SocketCache\Client\AfrClientStore;
-use Autoframe\Components\SocketCache\Client\AfrSocketClient;
 use Autoframe\Components\SocketCache\Exception\AfrCacheSocketException;
 use Autoframe\Components\SocketCache\Integrity\AfrSocketIntegrityClass;
 use Autoframe\Components\SocketCache\Integrity\AfrSocketIntegrityInterface;
 use Autoframe\Components\SocketCache\Server\AfrSocketServer;
 use Autoframe\Components\SocketCache\Server\AfrServerStore;
 
-//C:\xampp\htdocs\components-socket-cache\vendor\autoframe\process-control\src\Lock\AfrLockFileClass.php
-//TODO SERVER LOCK
-//TODO:: php -d memory_limit=4M Tests\serverUp.php
+//https://www.techinpost.com/only-one-usage-of-each-socket-address-is-normally-permitted/
+
 class AfrCacheSocketConfig
 {
     use AfrCacheSocketConfigStatic;
 
     public $mSocket = null;
+    /**
+     * @var string[]
+     */
     public array $aErrors = [];
+    /**
+     * @var float microtime(true)
+     */
     public float $fFailedToConnect = 0.0;
 
-    public string $sConfigName;
-    public string $sConfigPrefix = ''; //TODO laravel
+    public string $driver;
     public string $sSocketServerFQCN = AfrSocketServer::class;
-    public string $sServerStoreFQCN = AfrServerStore::class; //implememts Illuminate\Contracts\Cache\Store
-    public string $sClientFQCN = AfrSocketClient::class;  //implememts Illuminate\Contracts\Cache\Store
+    public string $sServerStoreFQCN = AfrServerStore::class; //implememts Autoframe\Components\SocketCache\LaravelPort\Contracts\Cache\Store
 
-    protected AfrSocketIntegrityInterface $oIntegrity;
     public array $socketCreate = [AF_INET, SOCK_STREAM, SOL_TCP];
     public array $socketSetOption = [
         [SOL_SOCKET, SO_RCVTIMEO, ['sec' => 1, 'usec' => 0]],
         [SOL_SOCKET, SO_SNDTIMEO, ['sec' => 1, 'usec' => 0]],
     ];
     public string $socketIp = '127.0.0.1';
-    public $socketPort = 11317;
+    public $socketPort = 11318;
 
 
     public int $iSocketReadBuffer = 1024; //used for reading with socket_read both on the server and client
     public int $iSocketListenBacklogQueue = SOMAXCONN; //1000; // SOMAXCONN
     public int $iSocketSelectSeconds = 1;
     public int $iSocketSelectUSeconds = 0;
-    public int $iAutoShutdownServerAfterXSeconds = 60;
+    public int $iAutoShutdownServerAfterXSeconds = 0;
 
 
     public int $iServerErrorReporting = E_ALL;
-    public bool $bServerInlineEcho = true;
-    public bool $bServerAllInlineDebug = true;
+    public bool $bServerInlineEcho = false;
+    public bool $bServerAllInlineDebug = false;
     public bool $bServerAutoPowerOnByConfigViaCliOnLocal = true;
-    public int $iServerMemoryMb = 64; //64 MB
+    /** @var int Allowed Server memory in MB */
+    public int $iServerMemoryMb = 256; //64 MB
 
     public array $aEvictionPercentRange = [
         'GREEN' => 85, //Memory is checked each second. Under this everything is bliss!
@@ -57,44 +58,49 @@ class AfrCacheSocketConfig
         'RED' => 95, //Memory is always checked inside the started eviction loop. Above RED% we evict stored next inline expires, until we drop in the YELLOW.
     ];
 
-    public $mLogInstanceOrSingletonFQCNClassName = null; //must implement log(string) TODO interface!!
+    /**
+     * @var string singleton class name that implements method log(string)
+     */
+    public string $sServerLogInstanceOrSingletonFQCNClassName = ''; // TODO interface!!
 
+    /**
+     * @var bool Slows down performance but makes a low security if you want to host the server on another pc
+     */
     public bool $bObfuscateCommunicationBetweenClientServer = false;
     public array $aObfuscateMap = [
         'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789' . "\x1F\x8B\x08\x00\x02",
         "hqr01sijk3Dlmn2HI5NO\x1F\x8B\x08\x00\x02PQ678vwxygzEF4ABCG9JKLMRSXYZabcdTUVWefoptu"
     ];
-
+    protected AfrSocketIntegrityInterface $oIntegrity;
 
 
     /**
-     * @param $mPropertiesOrName
+     * @param $mPropertiesOrDriverName
      * @throws AfrCacheSocketException
      */
-    public function __construct($mPropertiesOrName)
+    public function __construct($mPropertiesOrDriverName)
     {
-        if (is_array($mPropertiesOrName)) {
-            $this->setAssoc((array)$mPropertiesOrName);
-        } elseif (is_string($mPropertiesOrName) && strlen($mPropertiesOrName)) {
-            $this->sConfigName = $mPropertiesOrName;
+        if (is_array($mPropertiesOrDriverName)) {
+            $mPropertiesOrDriverName = (array)$mPropertiesOrDriverName;
+            if (
+                !empty($mPropertiesOrDriverName['driver']) &&
+                is_string($mPropertiesOrDriverName['driver'])
+            ) {
+                $this->driver = $mPropertiesOrDriverName['driver'];
+            }
+            $this->extend($mPropertiesOrDriverName);
+
+        } elseif (is_string($mPropertiesOrDriverName) && strlen($mPropertiesOrDriverName)) {
+            $this->driver = $mPropertiesOrDriverName;
         }
-        if (empty($this->sConfigName) || strlen(trim($this->sConfigName)) < 1) {
+        if (empty($this->driver) || strlen(trim($this->driver)) < 1) {
             throw new AfrCacheSocketException(
-                'Please provide a unique configuration key name for the class ' . __CLASS__
+                'Please provide a unique configuration name for the class ' . __CLASS__
             );
         }
-        self::$aInstances[$this->sConfigName] = $this;
+        self::$aInstances[$this->driver] = $this;
     }
 
-
-    /**
-     * @return string
-     */
-    public function getLockName(): string
-    {
-        //TODO MAKE USE OR REMOVE!!!
-        return $this->socketIp . ':' . $this->socketPort;
-    }
 
     public function xetIntegrityValidator(AfrSocketIntegrityInterface $oIntegrity = null): AfrSocketIntegrityInterface
     {
@@ -108,11 +114,14 @@ class AfrCacheSocketConfig
 
     /**
      * @param array $aProperty
-     * @return void
+     * @return $this
      */
-    protected function setAssoc(array $aProperty): void
+    public function extend(array $aProperty): self
     {
         foreach ($aProperty as $sProperty => $mValue) {
+            if (in_array($sProperty, ['driver', 'extend', 'closure',])) {
+                continue;
+            }
             if (is_integer($sProperty) || is_float($sProperty) || is_double($sProperty)) {
                 $sProperty = '(' . gettype($sProperty) . ')' . (string)$sProperty;
             }
@@ -120,8 +129,8 @@ class AfrCacheSocketConfig
                 $this->$sProperty = $mValue;
             }
         }
+        return $this;
     }
-
 
 
     public function __sleep()
@@ -131,7 +140,7 @@ class AfrCacheSocketConfig
 
     public function __wakeup()
     {
-        self::$aInstances[$this->sConfigName] = $this;
+        self::$aInstances[$this->driver] = $this;
     }
 
     public function __toString(): string
@@ -139,5 +148,51 @@ class AfrCacheSocketConfig
         return serialize($this);
     }
 
+    /**
+     * @param string $sSerializedBase64Instance Serialized and base64 Config instance
+     * @param string $sDriver
+     * @param bool $bPrintInfo
+     * @return void
+     * @throws AfrCacheSocketException
+     */
+    public static function up(
+        string $sSerializedBase64Instance = '',
+        string $sDriver = 'afrsock',
+        bool   $bPrintInfo = false
+    ): void
+    {
+        /** @var self $oConfig */
+        $oConfig = !empty($sSerializedBase64Instance) ?
+            unserialize(base64_decode($sSerializedBase64Instance)) :
+            (new static($sDriver));
+
+        $bCli = http_response_code() === false;
+
+        if ($oConfig instanceof AfrCacheSocketConfig) {
+            if (DIRECTORY_SEPARATOR === '\\' && $bCli) {
+                ob_start();
+            }
+            if ($bPrintInfo) {
+                $displaySettings = clone $oConfig;
+                $displaySettings->aObfuscateMap = [];
+                print_r($displaySettings);
+                echo "\r\n\r\n\r\n";
+            }
+
+            $oConfig->aErrors = [];
+            $oConfig->fFailedToConnect = 0;
+
+            $sServerClass = '\\' . trim($oConfig->sSocketServerFQCN, '\\ ');
+            new $sServerClass($oConfig);
+            if (DIRECTORY_SEPARATOR === '\\') {
+                ob_end_flush();
+            }
+        } else {
+            echo 'Invalid config!';
+            if ($bPrintInfo) {
+                var_dump($oConfig);
+            }
+        }
+    }
 
 }

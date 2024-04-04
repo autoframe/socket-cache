@@ -35,7 +35,7 @@ trait MemoryInfo
      * @param bool $bForceNew
      * @return array
      */
-    protected function getMemoryUsageInfo(bool $bForceNew = false): array
+    public function getMemoryUsageInfo(bool $bForceNew = false): array
     {
         $iTime = time();
         if ($bForceNew || !isset($this->aMemoryUsageInfo) || $this->aMemoryUsageInfo['iTime'] < $iTime) {

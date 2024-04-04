@@ -6,14 +6,22 @@ use Autoframe\Components\SocketCache\AfrCacheSocketConfig;
 
 class AfrSocketIntegrityClass implements AfrSocketIntegrityInterface
 {
-    protected AfrCacheSocketConfig $oConfig;
+    protected bool $bObfuscateCommunicationBetweenClientServer;
+    protected array $aObfuscateMap;
 
     /**
      * @param AfrCacheSocketConfig $oConfig
      */
     public function __construct(AfrCacheSocketConfig $oConfig)
     {
-        $this->oConfig = $oConfig;
+        $this->bObfuscateCommunicationBetweenClientServer =
+            $oConfig->bObfuscateCommunicationBetweenClientServer &&
+            function_exists('gzencode') &&
+            function_exists('gzdecode');
+
+        $this->aObfuscateMap = $this->bObfuscateCommunicationBetweenClientServer ?
+            $oConfig->aObfuscateMap : [];
+
     }
 
     /**
@@ -23,14 +31,24 @@ class AfrSocketIntegrityClass implements AfrSocketIntegrityInterface
     public function svDecodeRead(string $sRawRead): array
     {
         if (
-            $this->oConfig->bObfuscateCommunicationBetweenClientServer &&
-            ( $sRawRead === 'false' || strlen($sRawRead) < 1 )
+            $this->bObfuscateCommunicationBetweenClientServer &&
+            ($sRawRead === 'false' || strlen($sRawRead) < 1)
         ) {
             return [null, false, 'Message is plain `' . $sRawRead . '`'];
         }
-        $sRead = $this->obfuscate($sRawRead,false);
-        $bIntegrityCheckSuccess = !($sRead === false);
-        $sDebugInfo = $bIntegrityCheckSuccess?'':'Decode failed!';
+        $sRead = $this->obfuscate($sRawRead, false);
+        $bIntegrityCheckSuccess = true;
+        $sDebugInfo = '';
+        if ($sRead === false) {
+            $bIntegrityCheckSuccess = false;
+            $sDebugInfo = 'Decode failed!';
+        } elseif ($sRead === 'false') {
+            $bIntegrityCheckSuccess = false;
+            $sDebugInfo = 'Unknown command received';
+        } elseif (substr($sRead, 0, strlen('~EXCEPTION~: ')) === '~EXCEPTION~: ') {
+            $bIntegrityCheckSuccess = false;
+            $sDebugInfo = $sRead;
+        }
         return [$sRead, $bIntegrityCheckSuccess, $sDebugInfo];
     }
 
@@ -40,8 +58,8 @@ class AfrSocketIntegrityClass implements AfrSocketIntegrityInterface
      */
     public function svCodeWrite(string $sWrite): string
     {
-        $sRawWrite = $this->obfuscate($sWrite,true);
-        if($sRawWrite === false){
+        $sRawWrite = $this->obfuscate($sWrite, true);
+        if ($sRawWrite === false) {
             $sRawWrite = 'false';
         }
         return $sRawWrite;
@@ -72,7 +90,7 @@ class AfrSocketIntegrityClass implements AfrSocketIntegrityInterface
      */
     protected function obfuscate(string $sData, bool $bEnc)
     {
-        if(!$this->oConfig->bObfuscateCommunicationBetweenClientServer){
+        if (!$this->bObfuscateCommunicationBetweenClientServer) {
             return $sData;
         }
         $aMap = [
@@ -80,10 +98,10 @@ class AfrSocketIntegrityClass implements AfrSocketIntegrityInterface
             "hqr01sijk3Dlmn2HI5NO\x1F\x8B\x08\x00\x02PQ678vwxygzEF4ABCG9JKLMRSXYZabcdTUVWefoptu"
         ];
         if (
-            !empty($this->oConfig->aObfuscateMap) &&
-            count($this->oConfig->aObfuscateMap) > 1 &&
-            strlen($this->oConfig->aObfuscateMap[0] > 5)) {
-            $this->oConfig->aObfuscateMap = $aMap;
+            !empty($this->aObfuscateMap) &&
+            count($this->aObfuscateMap) > 1 &&
+            strlen($this->aObfuscateMap[0] > 5)) {
+            $aMap = $this->aObfuscateMap;
         }
 
         if ($bEnc) {

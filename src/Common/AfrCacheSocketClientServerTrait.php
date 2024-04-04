@@ -3,11 +3,9 @@
 namespace Autoframe\Components\SocketCache\Common;
 
 use Autoframe\Components\SocketCache\AfrCacheSocketConfig;
-use Autoframe\Components\SocketCache\Mock\SockTestsTrait;
 
 trait AfrCacheSocketClientServerTrait
 {
-    use SockTestsTrait;
     protected AfrCacheSocketConfig $oConfig;
 
     /**

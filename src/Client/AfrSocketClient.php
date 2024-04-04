@@ -13,6 +13,7 @@ class AfrSocketClient
     use AfrCacheSocketClientServerTrait;
 
     public array $afRequestTimeMs = [];
+    public static array $aAutoServerUpSent = [];
 
     /**
      * mConfig can be the name of the config or the serialized class or the instance
@@ -23,10 +24,10 @@ class AfrSocketClient
     {
         if (is_string($mConfig)) {
             if (AfrCacheSocketConfig::hasConfig($mConfig)) {
-                $mConfig = AfrCacheSocketConfig::makeConfig($mConfig);
-            } else {
+                $mConfig = AfrCacheSocketConfig::getConfigInstance($mConfig);
+            } elseif (substr($mConfig, 0, 2) === 'O:') {
                 try {
-                    $mConfig = unserialize($mConfig); //TODO TEST unserialize
+                    $mConfig = unserialize($mConfig);
                 } catch (Throwable $e) {
                 }
             }
@@ -46,6 +47,12 @@ class AfrSocketClient
      */
     public function sendRequest(string $sData): array
     {
+        //pre-connection check timeout 10 ms
+        if (empty(self::$aAutoServerUpSent[$this->oConfig->driver]) && $this->oConfig->bServerAutoPowerOnByConfigViaCliOnLocal) {
+            self::$aAutoServerUpSent[$this->oConfig->driver] = true;
+            AfrCacheSocketConfig::serverUp($this->oConfig);
+        }
+
         $fStart = microtime(true);
         $iErrorCountStart = count($this->oConfig->aErrors);
 
@@ -97,9 +104,6 @@ class AfrSocketClient
     protected function setAwaitForTimeoutRecovery(int $iMsToWait = 500): void
     {
         $this->oConfig->fFailedToConnect = microtime(true) + ($iMsToWait / 1000);
-        if ($this->oConfig->bServerAutoPowerOnByConfigViaCliOnLocal) {
-            AfrCacheSocketConfig::serverUp($this->oConfig);
-        }
     }
 
     /**
@@ -113,7 +117,7 @@ class AfrSocketClient
         }
         $this->oConfig->mSocket = socket_create(...$this->oConfig->socketCreate);
         if ($this->oConfig->mSocket === false) {
-            $this->pushSocketErrors('socket_create(' . $this->oConfig->sConfigName . ') failed: ' . socket_strerror(socket_last_error()));
+            $this->pushSocketErrors('socket_create(' . $this->oConfig->driver . ') failed: ' . socket_strerror(socket_last_error()));
             $this->setAwaitForTimeoutRecovery(60 * 60 * 1000); //if the socket could not be created, don't bother to do so
             return false;
         }
@@ -132,10 +136,15 @@ class AfrSocketClient
             return false;
         }
 
+        if ($this->oConfig->bServerAutoPowerOnByConfigViaCliOnLocal && empty(self::$aAutoServerUpSent[$this->oConfig->driver])) {
+            self::$aAutoServerUpSent[$this->oConfig->driver] = true;
+            AfrCacheSocketConfig::serverUp($this->oConfig);
+        }
+
         $result = socket_connect($this->oConfig->mSocket, $this->oConfig->socketIp, $this->oConfig->socketPort);
         if ($result === false) {
             $sErr = socket_strerror(socket_last_error($this->oConfig->mSocket));
-            $this->pushSocketErrors('socket_connect(' . $this->oConfig->sConfigName . ') failed: ' . $sErr);
+            $this->pushSocketErrors('socket_connect(' . $this->oConfig->driver . ') failed: ' . $sErr);
             $this->socketClose();
             //if the socket could not connect, we wasted 2 seconds already! retry in 2 seconds
             $this->setAwaitForTimeoutRecovery(2 * 1000);
@@ -159,7 +168,7 @@ class AfrSocketClient
         $sData = $this->oConfig->xetIntegrityValidator()->clCodeWrite($sData);
         $result = socket_write($this->oConfig->mSocket, $sData, strlen($sData));
         if ($result === false) {
-            $this->pushSocketErrors('socket_write(' . $this->oConfig->sConfigName . ') failed: ' .
+            $this->pushSocketErrors('socket_write(' . $this->oConfig->driver . ') failed: ' .
                 socket_strerror(socket_last_error($this->oConfig->mSocket)));
         }
         socket_shutdown($this->oConfig->mSocket, 1); //off reading(0);writing(1);both(2)
@@ -184,10 +193,10 @@ class AfrSocketClient
             $this->oConfig->fFailedToConnect = 0;
         }
         if (!$sOut && strlen($sOut) < 1) {
-            $sErr = 'socket_read(' . $this->oConfig->sConfigName . ') failed: ' .
+            $sErr = 'socket_read(' . $this->oConfig->driver . ') failed: ' .
                 socket_strerror(socket_last_error($this->oConfig->mSocket));
             $this->pushSocketErrors($sErr);
-            return [null, false, $sErr];//todo check
+            return [null, false, $sErr];
         }
 
         socket_shutdown($this->oConfig->mSocket, 0); //off reading(0);writing(1);both(2)

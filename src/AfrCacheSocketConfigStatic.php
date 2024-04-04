@@ -8,6 +8,10 @@ use Autoframe\Process\Control\Worker\Background\AfrBackgroundWorkerClass;
 
 trait AfrCacheSocketConfigStatic
 {
+
+    /**
+     * @var AfrCacheSocketConfig[]
+     */
     protected static array $aInstances = [];
     protected static array $aFactoryParameters = [];
 
@@ -19,70 +23,88 @@ trait AfrCacheSocketConfigStatic
     public static function hasConfig(string $sName): bool
     {
         return
-            static::isLocalName($sName) ||
             !empty(self::$aInstances[$sName]) ||
             !empty(self::$aFactoryParameters[$sName]);
     }
 
     /**
-     * @param $mPropertiesOrName
+     * @param string|array $mPropertiesOrDriverName
      * @return void
      * @throws AfrCacheSocketException
      */
-    public static function prepareConfig($mPropertiesOrName)
+    public static function setSockConfigParameters($mPropertiesOrDriverName)
     {
-        if (!empty($mPropertiesOrName['sConfigName'])) {
-            $sConfigName = $mPropertiesOrName['sConfigName'];
-        } elseif (is_string($mPropertiesOrName) && strlen($mPropertiesOrName)) {
-            $sConfigName = $mPropertiesOrName;
+        if (!empty($mPropertiesOrDriverName['driver']) && is_string($mPropertiesOrDriverName['driver'])) {
+            $driver = $mPropertiesOrDriverName['driver'];
+            self::$aFactoryParameters[$driver] = $mPropertiesOrDriverName;
+            if (!empty(self::$aInstances[$driver])) {
+                self::$aInstances[$driver]->extend($mPropertiesOrDriverName);
+            }
+        } elseif (!empty($mPropertiesOrDriverName) && is_string($mPropertiesOrDriverName)) {
+            $driver = $mPropertiesOrDriverName;
+            self::$aFactoryParameters[$driver] = ['driver' => $driver]; //all default!
         } else {
             throw new AfrCacheSocketException(
-                'Please provide a unique configuration key name for the class ' . __CLASS__
+                'Please provide a unique configuration + driver name for the class ' . __CLASS__
             );
         }
-        self::$aFactoryParameters[$sConfigName] = $mPropertiesOrName;
+
+
     }
 
     /**
      * We use only the default class settings if in_array($sName,['local','default','dev'])
-     * @param string $sName
+     * @param string $sDriver
      * @return AfrCacheSocketConfig
      * @throws AfrCacheSocketException
      */
-    public static function makeConfig(string $sName): AfrCacheSocketConfig
+    public static function getConfigInstance(string $sDriver): AfrCacheSocketConfig
     {
-        if (static::isLocalName($sName) && empty(self::$aInstances[$sName]) && empty(self::$aFactoryParameters[$sName])) {
-            self::$aInstances[$sName] = new static(self::$aFactoryParameters[$sName]);
+        if (!empty(self::$aInstances[$sDriver])) {
+            return self::$aInstances[$sDriver];
         }
 
-        if (empty(self::$aInstances[$sName]) && !empty(self::$aFactoryParameters[$sName])) {
-            self::$aInstances[$sName] = new static(self::$aFactoryParameters[$sName]);
-            unset(self::$aFactoryParameters[$sName]);
+        if (empty(self::$aInstances[$sDriver]) && !empty(self::$aFactoryParameters[$sDriver])) {
+            self::$aInstances[$sDriver] = new static(self::$aFactoryParameters[$sDriver]);
+        //    unset(self::$aFactoryParameters[$sDriver]);
         }
 
-        if (empty(self::$aInstances[$sName]) || !self::$aInstances[$sName] instanceof AfrCacheSocketConfig) {
+        if (empty(self::$aInstances[$sDriver]) || !self::$aInstances[$sDriver] instanceof AfrCacheSocketConfig) {
             throw new AfrCacheSocketException(
-                'Instance not found for  ' . static::class
+                'Instance not found for  ' . static::class.print_r(array_keys(self::$aInstances),true)
             );
         }
-        return self::$aInstances[$sName];
+        return self::$aInstances[$sDriver];
     }
 
-    protected static function isLocalName(string $sName): bool
-    {
-        return in_array($sName, ['local', 'default', 'dev']);
-    }
 
     public static function serverUp(AfrCacheSocketConfig $oConfigInstance): void
     {
-        $oLock = new AfrLockFileClass($oConfigInstance->getLockName());
-        if (!$oLock->isLocked()) {
+        if ($pf = @fsockopen(
+            $oConfigInstance->socketIp,
+            $oConfigInstance->socketPort,
+            $err,
+            $err_string,
+            1 / 250)
+        ) {
+            fclose($pf);
+            return;
+        }
+
+        //debug_print_backtrace();
+
+        $oLock = new AfrLockFileClass(
+            $oConfigInstance->socketIp . '-' . $oConfigInstance->socketPort
+        );
+        if (!$oLock->isLocked() && $oLock->obtainLock()) {
             AfrBackgroundWorkerClass::execWithArgs(
                 '-d memory_limit=' .
                 $oConfigInstance->iServerMemoryMb . 'M ' .
                 __DIR__ . DIRECTORY_SEPARATOR . 'Server' . DIRECTORY_SEPARATOR . 'serverUp.php ' .
                 base64_encode(serialize($oConfigInstance))
             );
+            sleep(1);
+            $oLock->releaseLock();
         }
 
     }

@@ -4,33 +4,6 @@ namespace Autoframe\Components\SocketCache\Server;
 
 use Autoframe\Components\SocketCache\Common\AfrCacheSocketStore;
 
-/**
- *
- * MANAGER -> makes a REPOSITORY CLIENT -> can retrieve / save or can get the STORE instance:
- * class Illuminate\Cache\CacheManager implements interface Illuminate\Contracts\Cache\Factory
- *      The manager has one method names store($name = null)
- *      store('name') returns Illuminate\Contracts\Cache\Repository
- *
- * Client (repository):
- * interface Illuminate\Contracts\Cache\Repository extends interface Psr\SimpleCache\CacheInterface
- *    methods: getStore; pull, put, add,  increment, decrement, remember, rememberForever, sear, forget
- *
- *
- * Client - Server Store adapter:
- * interface Illuminate\Contracts\Cache\Store
- * abstract class TaggableStore implements Store
- * abstract class AfrCacheSocketStore extends TaggableStore implements Store
- *
- * Server  ==  Store
- * interface Illuminate\Contracts\Cache\Store
- * class Illuminate\Cache\TaggableStore implements Illuminate\Contracts\Cache\Store
- *      This is an implementation for the client side Store
- *
- * Stores eg.:
- * class ArrayStore extends TaggableStore implements LockProvider
- * class FileStore implements Store, LockProvider
- *
- */
 class AfrServerStore extends AfrCacheSocketStore
 {
     use MemoryInfo;
@@ -193,6 +166,14 @@ class AfrServerStore extends AfrCacheSocketStore
         $this->aStore[$sKey] = [$iExpire, $mValue];
     }
 
+    /**
+     * @return array
+     */
+    public function getAllKeys(): array
+    {
+        $this->garbageMan();
+        return array_keys($this->aStore);
+    }
 
     /**
      * serializedAction = serialize(['method_name','arg.A','arg.B',...]) from client side
@@ -206,7 +187,7 @@ class AfrServerStore extends AfrCacheSocketStore
         $sMethod = array_shift($aAction);
         $sMethod = $this->methodIsCallable((string)$sMethod); //TODO error handling?
 
-        return $sMethod !== '' ? $this->$sMethod(...$aAction) : '';
+        return $sMethod !== '' ? $this->$sMethod(...$aAction) : null;
 
     }
 
@@ -222,20 +203,7 @@ class AfrServerStore extends AfrCacheSocketStore
     {
         $iTime = time();
         if (is_iterable($key)) {
-            $aReturn = [];
-            foreach ($key as $k => $v) {
-                if (is_integer($k)) {
-                    //key is int, so we have no default values
-                    $aReturn[$v] = $this->getFromStore($v, $iTime);
-                } else {
-                    //key is string, so we check for existing values or get the default from $v
-                    $k = (string)$k;
-                    $aStoreValue = $this->getFromStore($k, $iTime);
-                    $aReturn[$k] = $aStoreValue[self::EXISTS] ? $aStoreValue[self::VALUE] : $v;
-                    unset($aStoreValue);
-                }
-            }
-            return $aReturn;
+            return $this->many(...func_get_args());
         }
 
         $aStoreValue = $this->getFromStore((string)$key, $iTime);
@@ -259,7 +227,22 @@ class AfrServerStore extends AfrCacheSocketStore
      */
     public function many(array $keys): array
     {
-        return $this->get($keys);
+        //return $this->get($keys);
+        $iTime = time();
+        $aReturn = [];
+        foreach ($keys as $k => $v) {
+            if (is_integer($k)) {
+                //key is int, so we have no default values
+                $aReturn[$v] = $this->getFromStore($v, $iTime)[self::VALUE];
+            } else {
+                //key is string, so we check for existing values or get the default from $v
+                $k = (string)$k;
+                $aStoreValue = $this->getFromStore($k, $iTime);
+                $aReturn[$k] = $aStoreValue[self::EXISTS] ? $aStoreValue[self::VALUE] : $v;
+                unset($aStoreValue);
+            }
+        }
+        return $aReturn;
     }
 
 
@@ -275,7 +258,7 @@ class AfrServerStore extends AfrCacheSocketStore
     {
         $seconds = (int)$seconds;
         $this->setInStore((string)$key, $value, $seconds);
-        return $seconds < 0;
+        return isset($this->aStore[$key]);
     }
 
     /**
@@ -305,13 +288,27 @@ class AfrServerStore extends AfrCacheSocketStore
      */
     public function increment($key, $value = 1)
     {
-        $aStoreValue = $this->getFromStore($key);
-        if (!$aStoreValue[self::EXISTS]) {
-            return false;
+        if(0){
+            //bad implementation
+             $aStoreValue = $this->getFromStore($key);
+             if (!$aStoreValue[self::EXISTS]) {
+                 return false;
+             }
+             $this->setInStore(
+                 $key,
+                 $aStoreValue[self::VALUE],
+                 $aStoreValue[self::TS] + (int)$value - time()
+             );
+             $this->iHits--;//count fix
+             return $this->getFromStore($key)[self::TS];
         }
-        $this->setInStore($key, $aStoreValue[self::VALUE], (int)$value);
+        $key = (string)$key;
+        $aStoreValue = $this->getFromStore($key);
+        $mStoredValue = !$aStoreValue[self::EXISTS] ? 0 : $aStoreValue[self::VALUE];
+        $iNewStoredValue = (int)($mStoredValue + $value);
+        $this->setInStore((string)$key, $iNewStoredValue, self::MAXTS);
         $this->iHits--;//count fix
-        return $this->getFromStore($key)[self::TS];
+        return $iNewStoredValue;
     }
 
     /**
@@ -348,8 +345,12 @@ class AfrServerStore extends AfrCacheSocketStore
      */
     public function forget($key): bool
     {
-        $this->setInStore((string)$key, null, self::MINTS);
-        return true;
+        $key = (string)$key;
+        $bExists = !$this->isKeyExpired($key);
+        if ($bExists) {
+            $this->setInStore($key, null, self::MINTS); //expire
+        }
+        return $bExists;
     }
 
     /**
@@ -370,8 +371,7 @@ class AfrServerStore extends AfrCacheSocketStore
      */
     public function getPrefix(): string
     {
-        return ''; //TODO NAMESPACES
-        return $this->oSocketConfig->sConfigPrefix;
+        return ''; //TODO not supported yet
     }
 
 
@@ -382,11 +382,12 @@ class AfrServerStore extends AfrCacheSocketStore
      */
     public function delete(string $sKey, int $iDelay = 0): bool
     {
+        $aStoreValue = $this->getFromStore($sKey);
+        if (!$aStoreValue[self::EXISTS]) {
+            return false;
+        }
+        $iDelay = max($iDelay, 0);
         if ($iDelay > 0) {
-            $aStoreValue = $this->getFromStore($sKey);
-            if (!$aStoreValue[self::EXISTS]) {
-                return false;
-            }
             $this->iHits--;//count fix
             $this->setInStore($sKey, $aStoreValue[self::VALUE], $iDelay);
         } else {
@@ -394,5 +395,6 @@ class AfrServerStore extends AfrCacheSocketStore
         }
         return true;
     }
+
 
 }
