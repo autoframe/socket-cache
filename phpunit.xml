@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<phpunit colors="true" bootstrap="vendor/autoload.php">
+    <testsuites>
+        <testsuite name="Autoframe Cache Manager APP Socket">
+            <directory>Tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Package Dependencies Autoframe/*">
+            <directory>*/autoframe/*/Tests/Unit</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>
