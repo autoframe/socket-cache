@@ -1,13 +1,14 @@
 <?php
+declare(strict_types=1);
 
 namespace Autoframe\Components\SocketCache\App;
 
-use Autoframe\Components\Arr\Merge\AfrArrMergeProfileClass;
 use Autoframe\Components\Exception\AfrException;
 use Autoframe\Components\SocketCache\AfrCacheSocketConfig;
 use Autoframe\Components\SocketCache\Client\AfrClientStore;
+use Autoframe\DesignPatterns\SingletonArray\AfrSingletonArrAbstractClass;
 
-class AfrCacheApp extends ArrayAccessSingletonApp // extends Autoframe\Components\SocketCache\LaravelPort\Contracts\Foundation\Application
+class AfrCacheApp extends AfrSingletonArrAbstractClass // extends Autoframe\Components\SocketCache\LaravelPort\Contracts\Foundation\Application
 {
     /**
      * @var \Closure|null
@@ -31,12 +32,34 @@ class AfrCacheApp extends ArrayAccessSingletonApp // extends Autoframe\Component
     public function extendAppConfig(array $aData = [], bool $bMerge = true): self
     {
         if ($bMerge) {
-            AfrArrMergeProfileClass::getInstance()->arrayMergeProfile($this->aArrayAccessData, $aData);
+            $this->arrayMergeProfile($this->aArrayAccessData, $aData);
         } else {
             $this->aArrayAccessData = $aData;
         }
         $this->keyMaping(true);
         return $this;
+    }
+
+    /**
+     * Recursive array merging for config profiles
+     * @param array $aOriginal
+     * @param array $aNew
+     * @return array
+     */
+    protected function arrayMergeProfile(array $aOriginal, array $aNew): array
+    {
+        foreach ($aNew as $sNewKey => $mNewProfile) {
+            if (!isset($aOriginal[$sNewKey])) {
+                $aOriginal[$sNewKey] = $mNewProfile;
+            } elseif (is_array($aOriginal[$sNewKey]) && is_array($mNewProfile)) {
+                $aOriginal[$sNewKey] = $this->arrayMergeProfile($aOriginal[$sNewKey], $mNewProfile);
+            } elseif(is_integer($sNewKey)) {
+                $aOriginal[] = $mNewProfile;
+            } else {
+                $aOriginal[$sNewKey] = $mNewProfile;
+            }
+        }
+        return $aOriginal;
     }
 
     /**

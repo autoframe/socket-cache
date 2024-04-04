@@ -6,7 +6,7 @@
          displayDetailsOnTestsThatTriggerWarnings="true"
          >
     <testsuites>
-        <testsuite name="Autoframe File System Components">
+        <testsuite name="Autoframe Cache Manager APP Socket">
             <directory>Tests/Unit</directory>
         </testsuite>
         <testsuite name="Package Dependencies Autoframe/*">

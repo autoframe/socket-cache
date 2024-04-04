@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace Autoframe\Components\SocketCache\Integrity;
 
@@ -100,7 +101,7 @@ class AfrSocketIntegrityClass implements AfrSocketIntegrityInterface
         if (
             !empty($this->aObfuscateMap) &&
             count($this->aObfuscateMap) > 1 &&
-            strlen($this->aObfuscateMap[0] > 5)) {
+            strlen($this->aObfuscateMap[0]) > 5) {
             $aMap = $this->aObfuscateMap;
         }
 

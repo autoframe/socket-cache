@@ -1,15 +1,14 @@
 {
     "type": "library",
     "name": "autoframe/components-socket-cache",
-    "description": "PHP client - cache server alternative for memcached / redis",
+    "description": "PHP client - cache server alternative for memcached / redis. Including cache manager based on namespace priority rules",
     "license": "MIT",
     "homepage": "https://github.com/autoframe",
     "require": {
         "php": ">=7.4",
-        "autoframe/components-filesystem": ">=2.0",
         "autoframe/components-exception": ">=2.0",
         "autoframe/process-control": ">=1.0",
-        "autoframe/components-arr": ">=2.0",
+        "autoframe/design-patterns": ">=1.0.1",
         "ext-json": "*"
     },
     "version": "1.0.0",
@@ -20,7 +19,7 @@
             "role": "Developer"
         }
     ],
-    "keywords": ["socket", "client", "server", "cache"],
+    "keywords": ["socket", "client", "server", "cache","cache manager","memcached","apc","array store","file system cache"],
     "autoload": {
         "psr-4": {
             "Autoframe\\Components\\SocketCache\\": "src/"
@@ -39,7 +38,7 @@
         "ext-zlib": "Sock connection compression",
         "ext-memcached": "Memcached extension",
         "ext-apcu": "APC cache extension",
-        "predis/predis": "^2.0 Redis support"
+        "predis/predis": "^2.0 Redis support - dev bugs"
     }
 
 }

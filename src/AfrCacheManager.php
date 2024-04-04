@@ -1,8 +1,8 @@
 <?php
+declare(strict_types=1);
 
 namespace Autoframe\Components\SocketCache;
 
-use Autoframe\Components\SocketCache\Client\AfrClientStore;
 use Autoframe\Components\SocketCache\App\AfrCacheApp;
 use Autoframe\Components\SocketCache\LaravelPort\Cache\CacheManager;
 use InvalidArgumentException;

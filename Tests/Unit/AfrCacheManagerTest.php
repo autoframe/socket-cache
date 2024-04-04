@@ -4,16 +4,9 @@ declare(strict_types=1);
 namespace Unit;
 
 use Autoframe\Components\SocketCache\Client\AfrClientStore;
-use Autoframe\Components\SocketCache\AfrCacheManager;
 use Autoframe\Components\SocketCache\App\AfrCacheApp;
 use Autoframe\Components\SocketCache\Facade\AfrCache;
 use Autoframe\Components\SocketCache\Facade\AfrRepositoryAutoSelector;
-use Autoframe\Components\SocketCache\LaravelPort\Cache\ApcStore;
-use Autoframe\Components\SocketCache\LaravelPort\Cache\ArrayStore;
-use Autoframe\Components\SocketCache\LaravelPort\Cache\FileStore;
-
-use Autoframe\Components\SocketCache\LaravelPort\Cache\MemcachedStore;
-use Autoframe\Components\SocketCache\LaravelPort\Contracts\Cache\Repository;
 use PHPUnit\Framework\TestCase;
 
 class AfrCacheManagerTest extends TestCase
@@ -32,6 +25,15 @@ class AfrCacheManagerTest extends TestCase
                     AfrCacheApp::getInstance()
                 )
             );*/
+
+
+
+
+
+
+
+
+
     }
 
 
@@ -83,7 +85,6 @@ class AfrCacheManagerTest extends TestCase
             //     'socketPort' => 27501 + strlen($sSockDriverName),// + rand(0, 99);
         ], true);
         $oManager = AfrCache::getManager();
-        //$oManager->setDefaultDriver('null');
 
         $sInfo = print_r($oApp, true);
         $oRepo = $oManager->store();
@@ -100,7 +101,6 @@ class AfrCacheManagerTest extends TestCase
         //     }
 
 
-        //$this->assertSame(true, strpos(get_class($oRepo),'NullStore')!==false);
         $this->assertSame(true, $oRepo->getStore() instanceof AfrClientStore);
         if (rand(1, 140) == 37) {
             $this->assertSame(true, is_array($oRepo->getStore()->shutdownServer()));
@@ -141,7 +141,6 @@ class AfrCacheManagerTest extends TestCase
                 //    'extend' => 'array',
             ]
         );
-        // OR $oManager->setDefaultDriver('null');
         $oManager = AfrCache::getManager();
 
         $sInfo = print_r($oApp, true);
@@ -155,7 +154,7 @@ class AfrCacheManagerTest extends TestCase
         }
 
         //$this->assertSame(true, strpos(get_class($oRepo),'ArrayStore')!==false);
-        $this->assertSame(true, $oRepo->getStore() instanceof ArrayStore);
+        $this->assertSame(true, $oRepo->getStore()  instanceof \Autoframe\Components\SocketCache\LaravelPort\Cache\ArrayStore);
 
     }
 
@@ -189,7 +188,7 @@ class AfrCacheManagerTest extends TestCase
         }
 
         //$this->assertSame(true, strpos(get_class($oRepo),'ArrayStore')!==false);
-        $this->assertSame(true, $oRepo->getStore() instanceof FileStore);
+        $this->assertSame(true, $oRepo->getStore() instanceof \Autoframe\Components\SocketCache\LaravelPort\Cache\FileStore);
 
     }
 
@@ -277,7 +276,7 @@ class AfrCacheManagerTest extends TestCase
         }
 
         //$this->assertSame(true, strpos(get_class($oRepo),'ArrayStore')!==false);
-        $this->assertSame(true, $oRepo->getStore() instanceof MemcachedStore);
+        $this->assertSame(true, $oRepo->getStore() instanceof  \Autoframe\Components\SocketCache\LaravelPort\Cache\MemcachedStore);
 
     }
 
@@ -301,7 +300,6 @@ class AfrCacheManagerTest extends TestCase
 
         $sDriverName = 'apc';
         $oApp->setApcConfig(true);
-        // OR $oManager->setDefaultDriver('null');
         $oManager = AfrCache::getManager();
 
         $sInfo = print_r($oApp, true);
@@ -315,7 +313,7 @@ class AfrCacheManagerTest extends TestCase
         }
 
         //$this->assertSame(true, strpos(get_class($oRepo),'ArrayStore')!==false);
-        $this->assertSame(true, $oRepo->getStore() instanceof ApcStore);
+        $this->assertSame(true, $oRepo->getStore() instanceof \Autoframe\Components\SocketCache\LaravelPort\Cache\ApcStore);
     }
 
     /**
@@ -348,8 +346,7 @@ class AfrCacheManagerTest extends TestCase
         $oRepo->set($sKeyName,$sKeyVal,2);
 
         $oRepo = AfrRepositoryAutoSelector::selectRepoByKeyNs('H2\\2\\' . $sKeyName);
-        $this->assertSame(true, $oRepo instanceof Repository);
-      //  $this->assertSame(true, $oRepo->getStore() instanceof ArrayStore,get_class($oRepo->getStore()).' should be AfrClientStore');
+        $this->assertSame(true, $oRepo instanceof \Autoframe\Components\SocketCache\LaravelPort\Contracts\Cache\Repository);
 
         $this->assertSame($sKeyVal, $oRepo->get($sKeyName));
         $oRepo->clear();
